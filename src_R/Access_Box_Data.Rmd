@@ -1,0 +1,54 @@
+---
+title: "Import data from Box drive"
+author: "John Fay"
+date: "Fall 2026"
+---
+
+# Access Box Data 
+This Rmd demonstrates how to use large datasets stored on a box drive in your versioned workspace. For this to work, you'll need the BoxDrive software installed on your machine, and you will need to be logged in to your Box account via the BoxDrive app. 
+
+The path to the box folder on your machine depends on the operating system used (Windows or MacOS). Here, we use the `platform` package to determine what os is used and then creates a Path object pointing to the appropriate path. From there, we can add folders and files to the path object to access specific files that exist in the Box drive. 
+
+In this example, we'll read the `CTD_chem_gene_ixns.csv` file that lives in the class Box drive (`ENVIRON 712L-Students`), within the `Data`/`CTD-Jalal` folder, loading its contents into a dataframe. 
+
+```{r load packages, message=FALSE, warning=FALSE}
+library(tidyverse) 
+library(here)
+
+```
+
+```{r get box path}
+#Get the box path, based on the operating system
+current_os <- Sys.info()[["sysname"]]
+if (current_os == "Darwin") {
+  print("Running on a Mac")
+  box_path = fs::path_home("Library","CloudStorage","Box-Box")
+} else if (current_os == "Windows") {
+  print("Running on a PC (Windows)")
+  box_path = fs::path_home("Box")
+} else if (current_os == "Linux") {
+  print("Running on Linux; Box drive is not supported")
+}
+
+```
+
+```{r connect to file}
+#Add folders and the filename to the box path 
+file_path = fs::path(box_path,'ENVIRON 712L-Students','Data', 'CTD-Jalal', 'CTD_chem_gene_ixns.csv')
+
+#Check to see if the file exists at the path. Import if it is
+if (file.exists(file_path)) {
+  
+  #Report the file was found
+  print(paste0('File found at ',file_path,'. Importing...'))
+  #Import the file into a dataframe (first 10 records)
+  the_df <- read.csv(file_path,n_max=10)
+  
+} else {
+  
+  #Report the file was not found
+  print(paste('File NOT found at',file_path))
+  print('Check that BoxDrive app is running')
+  
+}
+```
