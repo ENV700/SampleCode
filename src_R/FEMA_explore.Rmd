@@ -1,0 +1,51 @@
+---
+title: "Explore FEMA Data"
+author: "John Fay"
+date: "2026-10-19"
+output: pdf_document
+---
+
+
+```{r load packages, message=FALSE, warning=FALSE}
+library(tidyverse) 
+library(fs)
+
+#Get the box path, based on the operating system
+current_os <- Sys.info()[["sysname"]]
+if (current_os == "Darwin") {
+  print("Running on a Mac")
+  box_path = path_home("Library","CloudStorage","Box-Box","ENVIRON 712L-Students")
+} else if (current_os == "Windows") {
+  print("Running on a PC (Windows)")
+  box_path = path_home("Box","ENVIRON 712L-Students")
+} else if (current_os == "Linux") {
+  print("Running on Linux; Box drive is not supported")
+}
+
+```
+
+Fetch FEMA data
+```{r}
+FEMA_claims <- read.csv(
+  path(box_path,"Data","Disasters","FEMA","NfipClaimsV3.csv"),
+  nrows = 10,
+  stringsAsFactors = TRUE
+  )
+
+glimpse(FEMA_claims)
+```
+
+FEMA via API
+```{r}
+the_url <- paste0(
+  "https://www.fema.gov/api/open/v3/NfipClaims?",
+  "$count=true",
+  "&$filter=(state eq 'NC')",
+  "&$format=csv"#,"&$top=100"
+)
+theURL <- "https://www.fema.gov/api/open/v3/NfipClaims?$count=true&$filter=(state%20eq%20%27NC%27)"
+print(the_url)
+print(theURL)
+the_df <- read.csv(textConnection(the_url))
+```
+
