@@ -1,0 +1,107 @@
+---
+title: "Importing Shapefiles and GeoTIFFs in R"
+author: "John Fay"
+date: "Fall 2026"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Introduction
+
+This tutorial demonstrates how to import spatial data in R using two common packages:
+
+- `sf` for handling shapefiles (.shp)
+- `terra` for handling raster files such as GeoTIFFs (.tif)
+
+# Importing Shapefiles with `sf`
+
+First, install our usual packages: `tidyverse` and `here`. Then load the `sf` package if it's not already installed. Same with the `terra` package. 
+
+```{r load packages, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+
+# install.packages("sf")
+library(sf)
+
+#install.packages("terra")
+library(terra)
+```
+
+---
+## Working with shapefiles
+
+To import a shapefile, use the `st_read()` function and provide the path to the `.shp` file:
+
+```{r}
+# Example file path
+shapefile_path <- here("data/raw/ne_10m_admin_2_counties.shp")
+
+# Read the shapefile
+shape_data <- st_read(shapefile_path)
+
+# View the data
+str(shape_data)
+```
+
+The product is a "spatial dataframe"; it can be treated much like a typical dataframe, but it has a new datatype: geometry. 
+
+```{r explore the spatial dataframe}
+# Shape
+dim(shape_data)
+
+# Structure
+str(shape_data)
+
+# View the data
+head(shape_data)
+
+```
+
+We can plot the data spatially using ggplot's sf_geom()
+
+```{r quick plot}
+shape_data |> 
+  filter(REGION == "NC") |> 
+  ggplot() +
+    geom_sf(aes(fill=AREA_SQKM))
+
+```
+
+
+---
+
+Use the `rast()` function to load a GeoTIFF file:
+
+```{r import a GeoTiff as a raster object}
+# Example file path
+geotiff_path <- here("data/raw/DurhamElev.tif")
+
+# Read the GeoTIFF
+raster_data <- rast(geotiff_path)
+
+# View the raster information
+raster_data
+```
+
+The raster object is *not* like a dataframe, but more like a 2-dimensional matrix of values. 
+
+```{r}
+#Summary of values
+summary(raster_data)
+
+#View a histogram of values
+hist(raster_data)
+
+#Shape of raster data
+dim(raster_data)
+
+#View the data
+plot(raster_data)
+```
+
+
+# Summary
+
+This tutorial showed how to load vector spatial data (shapefiles) and raster spatial data (GeoTIFFs) in R using the `sf` and `terra` packages, respectively. Replace the example file paths with your actual data locations when using these functions.
