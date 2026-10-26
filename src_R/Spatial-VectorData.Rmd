@@ -1,0 +1,62 @@
+---
+title: "Spatial: Vector Data" 
+author: "John Fay"
+date: "Fall 2026"
+output: html_document
+---
+
+# Working with Spatial Data in R - Vector Data
+
+## Highlights
+
+- Vector data represent spatial features as **geometries**: points, lines, and polygons.
+  - *Point* = single coordinate pair
+  - *Line* = sequence of coordinate pairs
+  - *Polygon* = sequence of coordinate pairs, with the last overlapping the first.
+- Geometries are stored as coordinate pairs in their own column in a **spatial dataframe**.
+- Geometries and spatial dataframes are also associated with a **coordinate reference system** (crs)
+  - The crs defines origin and axes to which the coordinate pairs are referenced.
+  - A crs can be geographic and use angular units (e.g. latitude/longitude) ;\
+    Or it can be projected and use linear units (e.g. UTM, State Plane)
+
+```{r setup}
+#Import packages
+library(tidyverse)
+library(here)
+library(fs)
+library(sf)
+library(tidycensus)
+
+#Local Paths
+raw_folder = here('/data/raw')
+processed_folder = here('/data/processed')
+
+#Box drive path
+current_os <- Sys.info()[["sysname"]]
+if (current_os == "Darwin") {
+  print("Running on a Mac")
+  box_path = fs::path_home("Library","CloudStorage","Box-Box")
+} else if (current_os == "Windows") {
+  print("Running on a PC (Windows)")
+  box_path = fs::path_home("Box")
+} else if (current_os == "Linux") {
+  print("Running on Linux; Box drive is not supported")
+}
+```
+
+```{r import data}
+#Import shapefiles - use the NC Flood Risk Information System data
+frs_folder = path(box_path,'ENVIRON 712L-Students','Data','SpatialData','NCFlood_Effective_Durham_SHP')
+
+#Import hydro gage locations (point feature class)
+hydro_gage = st_read(path(frs_folder,'V_E_HYDROGAGE.shp'))
+
+#Import 
+hydro_basin = st_read(path(frs_folder,'S_HYDROBASIN.shp'))
+```
+
+## Spatial Operations
+
+### Spatial Join
+
+- A spatial join assigns values in one dataset based on its overlap with a second spatial dataset.
