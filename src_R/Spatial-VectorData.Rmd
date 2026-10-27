@@ -120,11 +120,11 @@ ggplot() +
   
 ```
 
-### Spatial Selection
+### Spatial Filtering
 
 We can also select features in one spatial dataframe based on its relationship to features in another dataframe. This is analogous to creating a Boolean mask and then subsetting records where that mask is true.
 
-Here, we'll fetch some HUC (drainage area) data from <https://data.openwaterfoundation.org/country/us/usgs/huc-basins/>. Specifically, we'll get the Platte River HUC4 (1020): [`https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson`](https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson){.uri}
+First, we'll fetch some HUC (drainage area) data from <https://data.openwaterfoundation.org/country/us/usgs/huc-basins/>. Specifically, we'll get the Platte River HUC4 (1020): [`https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson`](https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson){.uri}
 
 ```{r Fetch HUC 4}
 #Fetch the North Platte HUC4 
@@ -138,37 +138,171 @@ mapview(huc4_sdf) +
           cex=2)             #Set size of the points to 2
 ```
 
-From here, we create a Boolean mask via a *spatial predicate*, here `st_intersects()` . Then we apply that mask to create a new spatial dataframe of just the objects meeting the criteria.
+Now, we'll filter the NWIS sites, selecting only those that intersect the features in the Platte River HUC4.
 
-```{r Spatial Selection}
-# Create a Boolean mask of selected features
-selection_mask = st_intersects(NWIS_joined,huc4_sdf,sparse=FALSE)
+```{r}
+#Filter the NWIS sites that intersect the Platte River HUC4
+NWIS_selected <- st_filter(
+    x = NWIS_joined, 
+    y = huc4_sdf,
+    .predicate = st_intersects
+    )
 
-# Select NWIS features  that intersect the Platte HUC4
-NWIS_subset <- NWIS_joined[selection_mask,]
-
-# Display
+#Display
+#Display the HUC4 with the NWIS points
 mapview(huc4_sdf) + 
-  mapview(NWIS_joined,col.regions='gray', cex=2) + 
-  mapview(NWIS_subset,col.regions='red',cex=3)
+  mapview(NWIS_joined,col.regions='gray', cex=2) +
+  mapview(NWIS_selected,col.regions='red', cex=3) 
 ```
 
-List of predicates:
+Note the last argument - `.predicate = st_intersects`. This defines how the features are selected, i.e. NWIS points that spatially *intersect* the HUC4. There are other predicates listed on the [sf cheat sheet](https://raw.githubusercontent.com/rstudio/cheatsheets/master/sf.pdf).
 
-- `st_intersects()`: Features that share any portion of space (default "catch-all").
+### Clipping Features
 
-- `st_contains()`: Features in `target_sf` that completely contain the geometry of `selector_sf`.
+In addition to spatially selecting features, we can clip features in one spatial dataframe using features in another. Here we'll clip the counties to areas that intersect the Platte River HUC4.
 
-- `st_within()`: Features in `target_sf` that are completely inside `selector_sf`.
+```{r Clip Features}
+counties_clip <- st_intersection(
+  x = counties_sdf, 
+  y = huc4_sdf
+)
 
-- `st_touches()`: Features that share a boundary or vertex, but do not interiorly intersect.
+#Plot (mapview won't work b/c of duplicate field names)
+ggplot() + geom_sf(data=counties_clip)
 
-- `st_covers()` / `st_covered_by()`: Similar to contains/within, allowing boundaries to touch.
+```
 
-- `st_disjoint()`: Features that do not intersect at all. [[1](https://www.google.com/goto?url=CAESaAHrOzAV1CwOXGg9Eyhi7DBZe2uY_fqDrPwO98I2D__I-xWudOLwKyEJ5r5PRvDUGDb7BgsN1UaXFvCoUmdJdaFTQvWoHix1KoZ9rpJofHUQbIx5u7TsuNatNs3Kmuo7ksJWTHZlDutv), [2](https://www.google.com/goto?url=CAEStAEB6zswFQgaWiAXuz5rta18wUJ2hjKHthr5DjlfYS5Z2VOP4rcb2dhcsi8ZHm6IqZaZuSY9OA7LBeZTXqrUwdDXrD4je4PHIskhYDSpcSVuQJwFWZ9p9ICGdiuJuEk6aJIi6NO4QMnQXSpzw9VwWHsSoLzo6h4wkhtwb0ifqdht51YfDPm61U5LUMllreR5Jtuu-YyKBDFeyJvlNUsBdjwvXbFga4CnVlryccJAksK5a1g1jNs), [3](https://www.google.com/goto?url=CAESYQHrOzAV2yBeZR7KBdxIvhrYb5r4B4ay2xjroI_7SJMrmNfLuYYZphHUChcHJKD8v76heqefLObPUyWiqqPM6xFrlhk8tVHQ-hLXdFZjWrrYepxcVQrY1Fcx7Moi-eqoWG4)]
+### Spatial Selection & Aggregation
 
-### Clipping and intersecting data
+We use `st_filter` to subset features spatially and write output to a new file. However, if we just want to spatially select a subset of features in an existing spatial dataframe, we use a different approach.
 
-### Spatial grouping of data (aggregate/dissolve)
+In this example, we'll assign a value to each county indicating if it touches the HUC4.
+
+```{r}
+#Initialize the column values "OUT:
+counties_HUC <- counties_sdf |> mutate(InHUC = "OUT")
+#Next we create a Boolean mask of counties that intersect the HUC4
+counties_intersect_mask <- st_intersects(
+  x = counties_HUC, 
+  y = huc4_sdf, 
+  sparse = FALSE
+)
+#We update records where the mask is true
+counties_HUC[counties_intersect_mask,'InHUC'] = "IN"
+
+#Show results
+mapview(counties_HUC,zcol='InHUC')
+```
 
 You can group spatial dataframes just as you would a tabular one, just that when you do, all geometries with a common grouped value will merge into a single spatial feature. If two spatial features share a boundary, that boundary will be *dissolved*, i.e., it will disappear.
+
+```{r}
+#Select NE Counties that intersect the Platte R. HUC4
+counties_HUC_dissolved <- counties_HUC |> 
+  group_by(InHUC) |> 
+  summarize(
+    #Update the area
+    CENSUSAREA=sum(CENSUSAREA)
+  )
+
+mapview(counties_HUC_dissolved,zcol='InHUC')
+```
+
+### Geometry manipulations
+
+We can alter the geometries in a spatial dataframe. For example, we can buffer features or reduce polygons to their centroids. In doing these calculations, however, we want to ensure our data use a ***projected coordinate reference system***, i.e., one where the x's and y's are in **linear units** (meters or feet) and not **angular units** (latitude/longitude).
+
+Without going into gory detail, you'll want to **transform** your data to a **UTM coordinate system**. Because we are in Nebraska, we'll use UTM Zone 14N, whose EPSG code is [32614](https://epsg.io/32614).
+
+```{r Transform datasets}
+#Transform our datasets to use UTM Zone 14N coordinates
+NWIS_utm <- st_transform(NWIS_joined, crs = 32614)
+counties_utm <- st_transform(counties_sdf, crs = 32614)
+hucs_utm <- st_transform(huc4_sdf, crs=32614)
+
+#Check
+st_crs(NWIS_utm) == st_crs(counties_utm)
+```
+
+Now that the geometry are in meters, we sensibly measure distances between objects and buffer.
+
+Here are some examples:
+
+```{r Geometry manipulations}
+#Plot
+myMap = ggplot() + 
+  geom_sf(data = counties_utm)
+myMap
+
+#Extract the centroids of the selected features and show them
+county_centroids <-  st_centroid(counties_utm)
+myMap <- myMap + geom_sf(data = county_centroids, color = 'blue')
+myMap
+
+#Buffer the centroids outward 5km and add them to our
+county_centroids_8km <- st_buffer(county_centroids, 8000)
+myMap <- myMap + geom_sf(data = county_centroids_8km, color = 'orange', fill=NA)
+myMap
+
+#Buffer the counties inward 5km
+county_in5km <- st_buffer(counties_utm, -5000)
+myMap <- myMap + geom_sf(data = county_in5km, color = 'green', fill=NA)
+myMap
+
+#Combine the centroids into one feature and construct a convex hull around them
+county_centroids_chull <- county_centroids %>% 
+  st_union() %>% 
+  st_convex_hull()
+myMap <- myMap + geom_sf(data = county_centroids_chull, color = 'red', fill=NA)
+myMap
+
+#Combine the centroids into one feature and draw voronoi polygons
+county_centroids_voronoi <- county_centroids %>% 
+  st_union() %>% 
+  st_voronoi()
+myMap <- myMap + geom_sf(data = county_centroids_voronoi, color = 'purple', fill=NA)
+myMap
+```
+
+### Distance calculations
+
+If we want to identify the nearest feature in one dataframe to features in another, we and use `st_join()`, specifying the join to be the nearest features.
+
+```{r Nearest feature}
+NWIS_nearest_county <- st_join(
+  x = NWIS_utm, 
+  y = county_centroids, 
+  join = st_nearest_feature)
+```
+
+If we want to calculate the distance to the nearest feature as well as assign the name, it's a bit more involved.
+
+```{r}
+#Get the index of the closest county centroid to each NWIS point
+nearest_county_idx <- st_nearest_feature(
+  x = NWIS_utm,
+  y = county_centroids,
+)
+
+#Assign the name of the county to the NWIS dataframe 
+NWIS_utm$closest_county <- county_centroids$NAME[nearest_county_idx]
+
+#Compute distance values
+NWIS_utm$distance_to_nearest_co <- st_distance(
+  NWIS_utm, 
+  county_centroids[nearest_county_idx, ], 
+  by_element = TRUE) |> as.numeric()
+
+ggplot() + 
+  geom_sf(
+    data = counties_utm
+  ) +
+  geom_sf(
+    data=county_centroids,color='black',shape='x'
+  ) +
+  geom_sf(
+    data = NWIS_utm,
+    aes(size = distance_to_nearest_co)
+  ) 
+
+```
