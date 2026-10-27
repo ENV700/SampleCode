@@ -3,6 +3,8 @@ title: "Spatial: Vector Data"
 author: "John Fay"
 date: "Fall 2026"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 # Working with Spatial Data in R - Vector Data
@@ -25,29 +27,29 @@ library(tidyverse)
 library(here)
 library(fs)
 library(sf)
-library(mapview)
 
-#Set mapview basemaps
-mapview::mapviewOptions(basemaps = c("OpenStreetMap","Esri.WorldImagery"))
+#Disable geodesic/force planar calculations
+#sf_use_s2(FALSE)
+
+## Mapview is a simple package for making interactive maps ##
+#install.packages(mapview)
+library(mapview)
+mapviewOptions(basemaps = c("OpenStreetMap","Esri.WorldImagery"))
 
 #Local Paths
 raw_folder = here('Data/raw')
 processed_folder = here('Data/processed')
-
-#Box drive path
-current_os <- Sys.info()[["sysname"]]
-if (current_os == "Darwin") {
-  box_path = fs::path_home("Library","CloudStorage","Box-Box")
-} else if (current_os == "Windows") {
-  box_path = fs::path_home("Box")
-} else if (current_os == "Linux") {
-  print("Running on Linux; Box drive is not supported")
-}
 ```
 
+## Reading in spatial data
 
-## Creating a spatial feature class from a table
-A table with coordinate information can be read into a spatial dataframe using the st `st_as_sf` function. In this example, we read in the `NWIS_SiteInfo_NE_RAW.csv` file, which has an "x" (`dec_long_va`) and a "y" (`dec_lat_va`) column, in as a spatial dataframe. 
+### Converting a dataframe with coordinate data to a spatial dataframe
+
+If your dataframe has coordinate data, i.e., columns for X and Y coordinates, you can convert the dataframe to a spatial dataframe by building point geometries from those coordinate data. Here we read in the `NWIS_SiteInfo_NE_RAW.csv` file, which has an "x" (`dec_long_va`) and a "y" (`dec_lat_va`) column, and convert it to a spatial dataframe via the `st_as_sf()` function.
+
+Note we have to also provide the coordinate reference system (crs). We do so by providing its EPSG code; our data has coordinates that are latitude/longitude, so we use the EPSG code of 4326 which represents the World Geodetic Survey of 1984. (See <https://epsg.io/>).
+
+Note also, we run `st_make_valid()` on the spatial dataframe to ensure its geometry is valid.
 
 ```{r table to spatial df}
 #First read in the file as a dataframe
@@ -60,25 +62,113 @@ NWIS_sdf <- st_as_sf(
   x = NWIS_df, 
   coords = c('dec_long_va','dec_lat_va'),
   crs = 4326
-)
+) |> st_make_valid()
 
 #View the dataframe with MapView
 mapview(NWIS_sdf)
 
 ```
 
+### Reading GeoJSON files directly from the internet
+
+GeoJSON is a text file that stores all the information of a geospatial feature class: geometries, attributes, and coordinate reference system information. The are text based equivalents of Shapefiles, but since they have all the data in a single file, they are a bit easier to work with. In fact, a web site can host these data on-line and we can read them directly into a spatial dataframe using `st_read()`.
+
+A quick web search for "US Counties GeoJSON" reveals many sources of that dataset. The one that pop up in the result for me is: <https://eric.clst.org/tech/usgeojson/> - an individual who has decided to host many datasets on his personal web site.
+
+The link for US Counties at a 1:5m scale is: [`https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json`](https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json).\
+We'll fetch that, reading its contents into a spatial dataframe, filtering for just counties in Nebraska, whose state FIPS code is "31". Again, we pass the result to the `st_make_valid()` function to ensure its geometry is valid.
+
+```{r reading GeoJSON files}
+counties_sdf <- st_read(
+  dsn='https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json',
+) |> 
+  #Filter for Nebraska
+  filter(STATE == '31')|> st_make_valid()
+
+#Reveal the crs the datasets uses
+st_crs(counties_sdf)
+
+#Display the results
+mapview(counties_sdf) + 
+  mapview(NWIS_sdf,col.regions='red')
+```
+
+------------------------------------------------------------------------
 
 ## Spatial Operations
 
 ### Spatial Join
 
-- A spatial join assigns values in one dataset based on its overlap with a second spatial dataset. For example, if we wanted to tag each of our NWIS points with the county in which it falls, we would *spatially join* the county data to the points. 
-  - Note here, we are reading county data in as a GeoJSON hosted here <https://eric.clst.org/tech/usgeojson/>
+A spatial join assigns values in one dataset based on its overlap with a second spatial dataset. For example, if we wanted to tag each of our NWIS points with the county in which it falls, we would *spatially join* the county data to the points. This is done via the `st_join()` function.
 
 ```{r spatial join}
-# Read in the county feature class
-counties_filename <- here(raw_folder,'ne_10m_admin_2_counties.zip')
-counties_url <- 'https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json'
-counties_sdf <- st_read(counties_url)
+#Spatially join 
+NWIS_joined <- st_join(
+  x = NWIS_sdf,        #The target sdf to receive the attributes
+  y = counties_sdf,    #The join sdf to supply the attributes
+  join = st_intersects #The predicate: how the data should be related
+)
+
+#See that the fields have been joined
+str(NWIS_joined)
+
+#View the points, now sized by CENSUSAREA and colored by COUNTY
+ggplot() + 
+  geom_sf(data = counties_sdf,color='grey') +
+  geom_sf(data = NWIS_joined,aes(size=CENSUSAREA,color=COUNTY)) +
+  theme(legend.position = "none")
+  
 ```
 
+### Spatial Selection
+
+We can also select features in one spatial dataframe based on its relationship to features in another dataframe. This is analogous to creating a Boolean mask and then subsetting records where that mask is true.
+
+Here, we'll fetch some HUC (drainage area) data from <https://data.openwaterfoundation.org/country/us/usgs/huc-basins/>. Specifically, we'll get the Platte River HUC4 (1020): [`https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson`](https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson){.uri}
+
+```{r Fetch HUC 4}
+#Fetch the North Platte HUC4 
+huc4_url = 'https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson'
+huc4_sdf = st_read(huc4_url) |> st_make_valid()
+
+#Display the HUC4 with the NWIS points
+mapview(huc4_sdf) + 
+  mapview(NWIS_joined,
+          col.regions='red', #Color the points red
+          cex=2)             #Set size of the points to 2
+```
+
+From here, we create a Boolean mask via a *spatial predicate*, here `st_intersects()` . Then we apply that mask to create a new spatial dataframe of just the objects meeting the criteria.
+
+```{r Spatial Selection}
+# Create a Boolean mask of selected features
+selection_mask = st_intersects(NWIS_joined,huc4_sdf,sparse=FALSE)
+
+# Select NWIS features  that intersect the Platte HUC4
+NWIS_subset <- NWIS_joined[selection_mask,]
+
+# Display
+mapview(huc4_sdf) + 
+  mapview(NWIS_joined,col.regions='gray', cex=2) + 
+  mapview(NWIS_subset,col.regions='red',cex=3)
+```
+
+List of predicates:
+
+- `st_intersects()`: Features that share any portion of space (default "catch-all").
+
+- `st_contains()`: Features in `target_sf` that completely contain the geometry of `selector_sf`.
+
+- `st_within()`: Features in `target_sf` that are completely inside `selector_sf`.
+
+- `st_touches()`: Features that share a boundary or vertex, but do not interiorly intersect.
+
+- `st_covers()` / `st_covered_by()`: Similar to contains/within, allowing boundaries to touch.
+
+- `st_disjoint()`: Features that do not intersect at all. [[1](https://www.google.com/goto?url=CAESaAHrOzAV1CwOXGg9Eyhi7DBZe2uY_fqDrPwO98I2D__I-xWudOLwKyEJ5r5PRvDUGDb7BgsN1UaXFvCoUmdJdaFTQvWoHix1KoZ9rpJofHUQbIx5u7TsuNatNs3Kmuo7ksJWTHZlDutv), [2](https://www.google.com/goto?url=CAEStAEB6zswFQgaWiAXuz5rta18wUJ2hjKHthr5DjlfYS5Z2VOP4rcb2dhcsi8ZHm6IqZaZuSY9OA7LBeZTXqrUwdDXrD4je4PHIskhYDSpcSVuQJwFWZ9p9ICGdiuJuEk6aJIi6NO4QMnQXSpzw9VwWHsSoLzo6h4wkhtwb0ifqdht51YfDPm61U5LUMllreR5Jtuu-YyKBDFeyJvlNUsBdjwvXbFga4CnVlryccJAksK5a1g1jNs), [3](https://www.google.com/goto?url=CAESYQHrOzAV2yBeZR7KBdxIvhrYb5r4B4ay2xjroI_7SJMrmNfLuYYZphHUChcHJKD8v76heqefLObPUyWiqqPM6xFrlhk8tVHQ-hLXdFZjWrrYepxcVQrY1Fcx7Moi-eqoWG4)]
+
+### Clipping and intersecting data
+
+### Spatial grouping of data (aggregate/dissolve)
+
+You can group spatial dataframes just as you would a tabular one, just that when you do, all geometries with a common grouped value will merge into a single spatial feature. If two spatial features share a boundary, that boundary will be *dissolved*, i.e., it will disappear.
