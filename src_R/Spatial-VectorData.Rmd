@@ -21,6 +21,8 @@ editor_options:
   - A crs can be geographic and use angular units (e.g. latitude/longitude) ;\
     Or it can be projected and use linear units (e.g. UTM, State Plane)
 
+By the end, you should be able to create points from a table, inspect their CRS, display an interactive map, and attach county attributes using a spatial join.
+
 ```{r setup}
 #Import packages
 library(tidyverse)
@@ -71,11 +73,12 @@ mapview(NWIS_sdf)
 
 ### Reading GeoJSON files directly from the internet
 
-GeoJSON is a text file that stores all the information of a geospatial feature class: geometries, attributes, and coordinate reference system information. The are text based equivalents of Shapefiles, but since they have all the data in a single file, they are a bit easier to work with. In fact, a web site can host these data on-line and we can read them directly into a spatial dataframe using `st_read()`.
+GeoJSON is a text file format that stores all the information of a geospatial feature class: geometries, attributes, and coordinate reference system information. The are text based equivalents of Shapefiles, but since they have all the data in a single file, they are a bit easier to work with. In fact, a web site can host these data on-line and we can read them directly into a spatial dataframe using `st_read()`.
 
 A quick web search for "US Counties GeoJSON" reveals many sources of that dataset. The one that pop up in the result for me is: <https://eric.clst.org/tech/usgeojson/> - an individual who has decided to host many datasets on his personal web site.
 
-The link for US Counties at a 1:5m scale is: [`https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json`](https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json).\
+The link for US Counties at a 1:5m scale is: [`https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json`](https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json).
+
 We'll fetch that, reading its contents into a spatial dataframe, filtering for just counties in Nebraska, whose state FIPS code is "31". Again, we pass the result to the `st_make_valid()` function to ensure its geometry is valid.
 
 ```{r reading GeoJSON files}
@@ -122,7 +125,7 @@ ggplot() +
 
 ### Spatial Filtering
 
-We can also select features in one spatial dataframe based on its relationship to features in another dataframe. This is analogous to creating a Boolean mask and then subsetting records where that mask is true.
+We can also select features in one spatial dataframe based on its relationship to features in another dataframe. This is a straightforward operation using the `st_filter()` function.
 
 First, we'll fetch some HUC (drainage area) data from <https://data.openwaterfoundation.org/country/us/usgs/huc-basins/>. Specifically, we'll get the Platte River HUC4 (1020): [`https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson`](https://data.openwaterfoundation.org/country/us/usgs/huc-basins/huc4-basin-1020-platte.geojson){.uri}
 
