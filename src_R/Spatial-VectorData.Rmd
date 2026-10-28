@@ -1,0 +1,84 @@
+---
+title: "Spatial: Vector Data" 
+author: "John Fay"
+date: "Fall 2026"
+output: html_document
+---
+
+# Working with Spatial Data in R - Vector Data
+
+## Highlights
+
+- Vector data represent spatial features as **geometries**: points, lines, and polygons.
+  - *Point* = single coordinate pair
+  - *Line* = sequence of coordinate pairs
+  - *Polygon* = sequence of coordinate pairs, with the last overlapping the first.
+- Geometries are stored as coordinate pairs in their own column in a **spatial dataframe**.
+- Geometries and spatial dataframes are also associated with a **coordinate reference system** (crs)
+  - The crs defines origin and axes to which the coordinate pairs are referenced.
+  - A crs can be geographic and use angular units (e.g. latitude/longitude) ;\
+    Or it can be projected and use linear units (e.g. UTM, State Plane)
+
+```{r setup}
+#Import packages
+library(tidyverse)
+library(here)
+library(fs)
+library(sf)
+library(mapview)
+
+#Set mapview basemaps
+mapview::mapviewOptions(basemaps = c("OpenStreetMap","Esri.WorldImagery"))
+
+#Local Paths
+raw_folder = here('Data/raw')
+processed_folder = here('Data/processed')
+
+#Box drive path
+current_os <- Sys.info()[["sysname"]]
+if (current_os == "Darwin") {
+  box_path = fs::path_home("Library","CloudStorage","Box-Box")
+} else if (current_os == "Windows") {
+  box_path = fs::path_home("Box")
+} else if (current_os == "Linux") {
+  print("Running on Linux; Box drive is not supported")
+}
+```
+
+
+## Creating a spatial feature class from a table
+A table with coordinate information can be read into a spatial dataframe using the st `st_as_sf` function. In this example, we read in the `NWIS_SiteInfo_NE_RAW.csv` file, which has an "x" (`dec_long_va`) and a "y" (`dec_lat_va`) column, in as a spatial dataframe. 
+
+```{r table to spatial df}
+#First read in the file as a dataframe
+NWIS_filename <- here(raw_folder,'NWIS_SiteInfo_NE_RAW.csv')
+NWIS_df <- read.csv(NWIS_filename)
+
+#Then convert to a spatial dataframe using `st_as_sf`, 
+# specifying the coordinate fields and the crs
+NWIS_sdf <- st_as_sf(
+  x = NWIS_df, 
+  coords = c('dec_long_va','dec_lat_va'),
+  crs = 4326
+)
+
+#View the dataframe with MapView
+mapview(NWIS_sdf)
+
+```
+
+
+## Spatial Operations
+
+### Spatial Join
+
+- A spatial join assigns values in one dataset based on its overlap with a second spatial dataset. For example, if we wanted to tag each of our NWIS points with the county in which it falls, we would *spatially join* the county data to the points. 
+  - Note here, we are reading county data in as a GeoJSON hosted here <https://eric.clst.org/tech/usgeojson/>
+
+```{r spatial join}
+# Read in the county feature class
+counties_filename <- here(raw_folder,'ne_10m_admin_2_counties.zip')
+counties_url <- 'https://eric.clst.org/assets/wiki/uploads/Stuff/gz_2010_us_050_00_5m.json'
+counties_sdf <- st_read(counties_url)
+```
+
