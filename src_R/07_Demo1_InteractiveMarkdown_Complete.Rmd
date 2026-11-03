@@ -26,7 +26,7 @@ library(tidyverse);library(here);library(lubridate)
 
 #Load data
 nutrient_data <- read.csv(
-  here('Data/Processed_KEY','NTL-LTER_Lake_Nutrients_PeterPaul_Processed.csv'),
+  here('Data','raw','NTL-LTER_Lake_Nutrients_PeterPaul_Processed.csv'),
   stringsAsFactors = TRUE)
 
 #Fix dates
