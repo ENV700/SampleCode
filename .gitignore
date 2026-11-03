@@ -6,4 +6,4 @@
 
 #Ignore raw_large
 Data/raw_large
-src_Python/PeterPaulApp_Simple/__pycache__/*
+src_Python/PeterPaulApp_Full/__pycache__/*
