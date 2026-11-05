@@ -1,0 +1,101 @@
+---
+title: 'Demo: Interactive R Markdown - Streamlined'
+author: Environmental Data Analytics | John Fay & Luana Lima 
+date: "Spring 2026"
+output: html_document
+runtime: shiny
+editor_options: 
+  chunk_output_type: console
+---
+
+## Interactive R with Shiny
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+#Load packages
+library(tidyverse);library(here);library(lubridate)
+
+#Load data
+nutrient_data <- read.csv(
+  here('Data','raw','NTL-LTER_Lake_Nutrients_PeterPaul_Processed.csv'),
+  stringsAsFactors = TRUE)
+
+#Fix dates
+nutrient_data$sampledate = ymd(nutrient_data$sampledate)
+
+#Set a default plotting theme
+my_theme <- theme_classic(base_size = 12) +
+  theme(
+      panel.grid.major = element_line(color = "gray", linewidth = 0.5),
+      panel.grid.minor = element_line(color = "lightgray", linewidth = 0.25),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+    )
+
+theme_set(my_theme)
+
+```
+
+
+```{r Plot Functions, echo=FALSE, warning=FALSE}
+#Create plotting function
+plot_it <- function(the_parameter,start_year,end_year){
+  #Plot the values given
+  nutrient_data %>% 
+    filter(year4 > start_year & year4 < end_year) %>% 
+    ggplot(aes(
+      x = sampledate,
+      #y = .data[[the_parameter]], #-or-
+      y = !!sym(the_parameter),
+      color = depth,
+      shape = lakename)) +
+    geom_point(alpha = 0.4, size = 2) +
+    scale_x_date(
+      date_breaks = "1 years",
+      date_labels = '%Y') +
+    scale_shape_manual(values = c(17, 18)) +
+    labs(
+      title = "Concentration over time, by depth and lake",
+      x = "Date", 
+      y = expression(Concentration ~ (mu*g / L)), 
+      shape = "Lake", 
+      color = "Depth (m)") +
+    scale_color_viridis_c(
+      option = "mako", 
+      guide = guide_colorbar(reverse = T),
+      direction = -1)
+}
+
+```
+
+
+```{r widget exploration, echo=FALSE}
+# Create a selectInput widget to select which nutrient to display in the plot
+selectInput(
+  inputId =  "the_parameter",
+  label = "Select the nutrient to show",
+  choices = c('tn_ug','tp_ug','nh34','no23','po4'),
+  selected = 'tn_ug'
+)
+
+# Create a sliderInput to set the date range
+sliderInput(
+  inputId = 'yearSlider',
+  label = 'Select a date range',
+  min = min(nutrient_data$year4),
+  max = max(nutrient_data$year4),
+  step = 1,
+  round=T,
+  sep='',
+  value = c(min(nutrient_data$year4),max(nutrient_data$year4))
+)
+
+# Create a renderPlot object to display the plot 
+# created with the plot_it function
+renderPlot(
+  plot_it(
+    input$the_parameter,
+    input$yearSlider[1],
+    input$yearSlider[2]
+    )
+)
+```
+
