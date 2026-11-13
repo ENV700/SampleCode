@@ -1,0 +1,9 @@
+pandas
+geopandas
+shiny
+ipyleaflet
+seaborn
+ipykernel
+shinywidgets
+rsconnect-python
+shinyswatch
